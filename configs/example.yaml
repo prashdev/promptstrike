@@ -1,0 +1,28 @@
+# Example PromptStrike run config.
+#
+# Authorised use only: run only against endpoints you own or have explicit
+# written permission to test. Credentials are referenced as ${ENV_VAR} and
+# resolved from the environment by config.loader — never hard-code secrets here.
+#
+# This is a placeholder shape; fields are finalised in config.schema.RunConfig.
+
+target:
+  provider: openai            # openai | anthropic | ollama
+  base_url: https://api.example.com/v1
+  model: gpt-4o-mini
+  api_key: ${TARGET_API_KEY}
+
+judge:
+  provider: anthropic
+  model: claude-sonnet-5
+  api_key: ${JUDGE_API_KEY}
+
+probes:
+  - llm01_prompt_injection
+  - llm02_sensitive_info
+  - llm06_excessive_agency
+  - llm07_system_prompt_leak
+
+report:
+  format: md                  # md | html
+  output: ./promptstrike-report.md
