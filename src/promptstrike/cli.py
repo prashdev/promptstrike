@@ -1,11 +1,64 @@
 """Rich-based CLI entrypoint and argument parsing for PromptStrike.
 
-Parses command-line arguments, shows the authorised-use notice, loads the run
-config, drives the scan engine, and writes the report. No scanning logic lives
-here — this module only wires the CLI to the engine.
+Parses command-line arguments, shows the authorised-use notice, and drives the
+scan engine via the config-driven entry point. No scanning logic lives here —
+this module only wires the CLI to ``engine.run_scan_from_config``.
 """
 
 from __future__ import annotations
+
+import argparse
+import asyncio
+
+from rich.console import Console
+from rich.panel import Panel
+
+from promptstrike.config.errors import ConfigError
+from promptstrike.engine.scanner import run_scan_from_config
+from promptstrike.probes.errors import ProbeLoadError
+from promptstrike.providers.errors import ProviderError
+
+_AUTH_NOTICE = (
+    "[bold]Authorised use only.[/] PromptStrike is a security-testing tool. "
+    "Run it only against endpoints you own or have explicit written permission "
+    "to test."
+)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser and its subcommands."""
+    parser = argparse.ArgumentParser(
+        prog="promptstrike",
+        description="Black-box LLM red-teaming scanner (OWASP LLM Top 10).",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    scan = sub.add_parser("scan", help="Run a scan described by a YAML config.")
+    scan.add_argument(
+        "-c",
+        "--config",
+        required=True,
+        help="Path to the YAML run config (target, judge, probes).",
+    )
+    return parser
+
+
+def _run_scan(config_path: str, console: Console) -> int:
+    """Execute the config-driven scan and print a short summary."""
+    console.print(Panel(_AUTH_NOTICE, title="PromptStrike"))
+    try:
+        findings = asyncio.run(run_scan_from_config(config_path, console=console))
+    except (ConfigError, ProbeLoadError, ProviderError) as exc:
+        console.print(f"[red]Scan failed:[/] {exc}")
+        return 1
+
+    hits = [f for f in findings if f.verdict.success]
+    for f in hits:
+        console.print(
+            f"  [red]•[/] {f.owasp_id} {f.category_name} "
+            f"(confidence {f.verdict.confidence:.2f})"
+        )
+    console.print(f"[bold]{len(hits)}[/] confirmed finding(s).")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -17,4 +70,8 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Process exit code.
     """
-    raise NotImplementedError
+    args = _build_parser().parse_args(argv)
+    console = Console()
+    if args.command == "scan":
+        return _run_scan(args.config, console)
+    return 1  # pragma: no cover - argparse enforces a valid subcommand

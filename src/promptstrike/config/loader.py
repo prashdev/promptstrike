@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from promptstrike.config.errors import ConfigError
 from promptstrike.config.schema import RunConfig
@@ -85,7 +86,12 @@ def load_config(path: str | Path) -> RunConfig:
 
     Returns:
         The validated run config with ``${ENV}`` references resolved.
+
+    Raises:
+        ConfigError: If the file is malformed, has unresolved ``${ENV}`` refs,
+            or fails schema validation.
     """
-    # TODO: validate the resolved dict once RunConfig grows its fields:
-    #   return RunConfig.model_validate(load_config_dict(path))
-    raise NotImplementedError
+    try:
+        return RunConfig.model_validate(load_config_dict(path))
+    except ValidationError as exc:
+        raise ConfigError(f"invalid run config {path}:\n{exc}") from exc

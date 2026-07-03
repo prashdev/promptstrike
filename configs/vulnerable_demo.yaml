@@ -1,0 +1,28 @@
+# Local demo run config: scan the deliberately-vulnerable training target.
+#
+# Authorised use only. This points at the built-in training dummy, not a real
+# system. Requires a local Ollama server with the two models pulled:
+#   ollama pull dolphin-mistral
+#   ollama pull llama3.2
+#
+# Run with:  promptstrike scan -c configs/vulnerable_demo.yaml
+
+target:
+  provider: vulnerable_chatbot
+  backend:
+    provider: ollama
+    model: dolphin-mistral
+    options:
+      temperature: 0            # deterministic, reproducible target responses
+
+judge:
+  provider: ollama
+  model: llama3.2
+  options:
+    temperature: 0              # deterministic, reproducible verdicts
+
+# Optional: run a subset by id. Omit to run the whole in-scope library.
+probes:
+  - llm01_prompt_injection
+  - llm02_sensitive_info
+  - llm07_system_prompt_leak
