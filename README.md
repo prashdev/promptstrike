@@ -14,11 +14,44 @@ See [CLAUDE.md](CLAUDE.md) for architecture, folder layout, and conventions.
 
 Early scaffold — package skeleton only, no scanning logic implemented yet.
 
-## Quick start (planned)
+## Quick start
 
 ```bash
 pip install -e ".[dev]"
-promptstrike run --config configs/example.yaml
+promptstrike scan -c configs/example.yaml
+```
+
+## Choosing the judge model
+
+The judge decides whether each attack actually succeeded, so **its quality is
+the credibility of the whole report** — a weak judge yields false positives and
+false negatives that undermine every finding.
+
+**Default for real scans: a strong Anthropic model.** The example config uses
+**`claude-sonnet-5`** — the strongest *reasonably-priced* option, with near-Opus
+reasoning at Sonnet cost. Set `ANTHROPIC_API_KEY` (or whatever env var the config
+references) and run. Step up to `claude-opus-4-8` when you want the most rigorous
+grading, or down to `claude-haiku-4-5` to cut cost on very high-volume runs.
+
+```yaml
+judge:
+  provider: anthropic
+  model: claude-sonnet-5
+  api_key: ${JUDGE_API_KEY}
+```
+
+**Ollama is an explicit opt-in for cost-free testing**, not the default. It's
+useful for local development and CI where you don't want to spend API credits,
+but a small local model is a noticeably weaker judge — treat its verdicts as
+indicative, not authoritative. (The [local demo](configs/vulnerable_demo.yaml)
+uses `llama3.2` at `temperature: 0` for reproducibility.)
+
+```yaml
+judge:
+  provider: ollama
+  model: llama3.2
+  options:
+    temperature: 0
 ```
 
 ## Training target (safe, reproducible testing)

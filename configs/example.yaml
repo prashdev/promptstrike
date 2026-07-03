@@ -4,7 +4,7 @@
 # written permission to test. Credentials are referenced as ${ENV_VAR} and
 # resolved from the environment by config.loader — never hard-code secrets here.
 #
-# This is a placeholder shape; fields are finalised in config.schema.RunConfig.
+# The config is validated against config.schema.RunConfig.
 
 target:
   provider: openai            # openai | anthropic | ollama
@@ -12,10 +12,26 @@ target:
   model: gpt-4o-mini
   api_key: ${TARGET_API_KEY}
 
+# Judge: for real scans, default to a strong Anthropic model. The judge decides
+# whether each attack succeeded, so its quality IS the credibility of the whole
+# report — a weak judge produces false positives/negatives that undermine every
+# finding. claude-sonnet-5 is the strongest reasonably-priced option (near-Opus
+# reasoning at Sonnet cost); step up to claude-opus-4-8 for the most rigorous
+# grading, or down to claude-haiku-4-5 to cut cost on high-volume runs.
 judge:
   provider: anthropic
   model: claude-sonnet-5
   api_key: ${JUDGE_API_KEY}
+
+# Cost-free alternative (explicit opt-in): judge locally with Ollama instead of
+# a paid API. Use for development/CI only — a small local model is a noticeably
+# weaker judge (see configs/vulnerable_demo.yaml). Comment out the block above
+# and uncomment this one to use it:
+# judge:
+#   provider: ollama
+#   model: llama3.2
+#   options:
+#     temperature: 0            # deterministic, reproducible verdicts
 
 probes:
   - llm01_prompt_injection
