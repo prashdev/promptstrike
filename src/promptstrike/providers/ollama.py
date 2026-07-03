@@ -22,6 +22,7 @@ class OllamaProvider(LLMProvider):
         *,
         model: str,
         base_url: str = "http://localhost:11434",
+        options: dict[str, object] | None = None,
         timeout: httpx.Timeout = DEFAULT_TIMEOUT,
         max_retries: int = 2,
         backoff: float = 0.5,
@@ -32,6 +33,9 @@ class OllamaProvider(LLMProvider):
         Args:
             model: Local model tag, e.g. ``"llama3"``.
             base_url: Ollama server root (defaults to the local daemon).
+            options: Optional Ollama sampling options (e.g.
+                ``{"temperature": 0}`` for deterministic output — useful for the
+                judge, where a stable verdict matters more than diversity).
             timeout: Per-request timeout policy.
             max_retries: Extra attempts on transient failures.
             backoff: Base backoff seconds.
@@ -45,6 +49,7 @@ class OllamaProvider(LLMProvider):
             client=client,
         )
         self._base_url = base_url.rstrip("/")
+        self._options = options
 
     async def chat(self, messages: list[Message], system: str | None = None) -> str:
         """Send an Ollama native chat request and return the reply text.
@@ -57,14 +62,18 @@ class OllamaProvider(LLMProvider):
             wire_messages.append({"role": "system", "content": system})
         wire_messages.extend(messages)
 
+        payload: dict[str, object] = {
+            "model": self.model,
+            "messages": wire_messages,
+            "stream": False,
+        }
+        if self._options:
+            payload["options"] = self._options
+
         data = await self._post_json(
             f"{self._base_url}/api/chat",
             headers={"Content-Type": "application/json"},
-            payload={
-                "model": self.model,
-                "messages": wire_messages,
-                "stream": False,
-            },
+            payload=payload,
         )
         try:
             return data["message"]["content"]

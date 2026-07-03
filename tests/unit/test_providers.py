@@ -99,6 +99,24 @@ async def test_ollama_native_parses_message_content() -> None:
     assert seen["path"] == "/api/chat"
 
 
+async def test_ollama_sends_sampling_options_when_set() -> None:
+    """Sampling options (e.g. temperature=0) are forwarded in the request body."""
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"message": {"content": "ok"}})
+
+    provider = OllamaProvider(
+        model="llama3", options={"temperature": 0}, client=_client(handler)
+    )
+    await provider.chat([{"role": "user", "content": "x"}])
+
+    assert seen["body"]["options"] == {"temperature": 0}
+
+
 async def test_retry_then_success_on_transient_500() -> None:
     """A retryable 500 is retried and the subsequent 200 succeeds."""
     calls = {"n": 0}
