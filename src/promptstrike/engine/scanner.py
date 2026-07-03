@@ -24,9 +24,11 @@ from promptstrike.config.loader import load_config
 from promptstrike.judge.judge import judge_attack
 from promptstrike.models.finding import Finding, Transcript
 from promptstrike.models.probe import Probe
+from promptstrike.models.triage import TriagedFinding
 from promptstrike.probes.loader import load_probes
 from promptstrike.providers import create_provider
 from promptstrike.providers.base import LLMProvider
+from promptstrike.triage import triage_findings
 
 
 async def run_scan(
@@ -105,27 +107,30 @@ async def run_scan_from_config(
     config_path: str,
     *,
     console: Console | None = None,
-) -> list[Finding]:
-    """Load a YAML run config and execute the scan it describes.
+) -> list[TriagedFinding]:
+    """Load a YAML run config, run the scan, and triage the results.
 
-    Thin wrapper over :func:`run_scan`: it resolves ``${ENV}`` refs and validates
-    the config, builds the target and judge providers via the provider factory,
-    loads (and optionally filters) the probe library, then delegates to
-    ``run_scan``. Providers it constructs are closed on completion.
+    The config-driven entry point: it resolves ``${ENV}`` refs and validates the
+    config, builds the target and judge providers via the provider factory,
+    loads (and optionally filters) the probe library, runs the scan, then triages
+    the raw findings — sourcing the ``agentic`` flag from ``target.agentic`` in
+    the config rather than any code default. Providers it constructs are closed
+    on completion.
 
     Args:
         config_path: Path to the YAML run config.
         console: Optional ``rich`` console passed through to ``run_scan``.
 
     Returns:
-        The collected findings.
+        Triaged findings (confirmed, scored, enriched), most severe first.
     """
     config = load_config(config_path)
     target = create_provider(config.target)
     judge = create_provider(config.judge)
     probes = _select_probes(load_probes(config.probe_dir), config.probes)
     try:
-        return await run_scan(target, judge, probes, console=console)
+        findings = await run_scan(target, judge, probes, console=console)
     finally:
         await target.aclose()
         await judge.aclose()
+    return triage_findings(findings, agentic=config.agentic)

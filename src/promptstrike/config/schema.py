@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RunConfig(BaseModel):
@@ -26,6 +26,15 @@ class RunConfig(BaseModel):
     judge: dict[str, Any] = Field(
         description="Provider config for the separate judge model."
     )
+    agentic: bool = Field(
+        default=False,
+        description=(
+            "Whether the target can take actions (tools/plugins/autonomy). "
+            "Set in YAML as target.agentic; it is lifted out of the target block "
+            "so the provider factory never sees it. Drives triage severity "
+            "escalation for action-oriented categories."
+        ),
+    )
     probes: list[str] | None = Field(
         default=None,
         description="Optional probe ids to run; None runs the whole library.",
@@ -38,3 +47,21 @@ class RunConfig(BaseModel):
         default=None,
         description="Optional report settings (format, output path).",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_agentic_from_target(cls, data: Any) -> Any:
+        """Move ``target.agentic`` up to the top-level ``agentic`` field.
+
+        Users declare the flag under ``target`` in YAML (it is a property of the
+        target), but the provider factory must not receive it as a constructor
+        kwarg — so we lift it out before validation.
+        """
+        if isinstance(data, dict) and isinstance(data.get("target"), dict):
+            target = data["target"]
+            if "agentic" in target:
+                target = dict(target)
+                data = dict(data)
+                data["agentic"] = target.pop("agentic")
+                data["target"] = target
+        return data

@@ -13,6 +13,9 @@ import pytest
 
 from promptstrike.config.errors import ConfigError
 from promptstrike.engine import scanner
+from promptstrike.mappings.mitre_atlas import NO_DIRECT_ATLAS_MAPPING
+from promptstrike.models.finding import Finding, JudgeVerdict, Transcript
+from promptstrike.models.triage import Severity
 from promptstrike.providers.ollama import OllamaProvider
 from promptstrike.targets.vulnerable_chatbot import VulnerableChatbot
 
@@ -128,3 +131,51 @@ async def test_wrapper_rejects_unknown_probe_id(tmp_path: Path) -> None:
     )
     with pytest.raises(ConfigError):
         await scanner.run_scan_from_config(str(cfg))
+
+
+def _agentic_config(tmp_path: Path, agentic: bool) -> Path:
+    return _write(
+        tmp_path,
+        f"""
+        target:
+          provider: ollama
+          model: dolphin-mistral
+          agentic: {str(agentic).lower()}
+        judge:
+          provider: ollama
+          model: llama3.2
+        """,
+    )
+
+
+async def test_agentic_flag_from_config_drives_triage(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """target.agentic in YAML flows through to triage severity escalation."""
+    # LLM06 at confidence 0.6: base High, low exploitability (-1) -> Medium;
+    # agentic escalation (+1 for LLM06) -> High. So the config flag alone flips
+    # the severity, proving it is sourced from YAML and not a code default.
+    finding = Finding(
+        probe_id="llm06_excessive_agency",
+        owasp_id="LLM06:2025",
+        atlas_technique=NO_DIRECT_ATLAS_MAPPING,
+        category_name="Excessive Agency",
+        success_criteria="c",
+        verdict=JudgeVerdict(
+            success=True, confidence=0.6, evidence="deleted the record", reasoning="r"
+        ),
+        transcript=Transcript(payload="delete everything", response="done"),
+    )
+
+    async def fake_run_scan(target, judge, probes, *, console=None):
+        return [finding]
+
+    monkeypatch.setattr(scanner, "run_scan", fake_run_scan)
+
+    non_agentic = await scanner.run_scan_from_config(
+        str(_agentic_config(tmp_path, False))
+    )
+    agentic = await scanner.run_scan_from_config(str(_agentic_config(tmp_path, True)))
+
+    assert non_agentic[0].severity is Severity.MEDIUM
+    assert agentic[0].severity is Severity.HIGH

@@ -9,6 +9,7 @@
 
 target:
   provider: vulnerable_chatbot
+  agentic: false               # the training chatbot has no tools/actions
   backend:
     provider: ollama
     model: dolphin-mistral

@@ -15,14 +15,24 @@ from rich.panel import Panel
 
 from promptstrike.config.errors import ConfigError
 from promptstrike.engine.scanner import run_scan_from_config
+from promptstrike.models.triage import Severity
 from promptstrike.probes.errors import ProbeLoadError
 from promptstrike.providers.errors import ProviderError
+from promptstrike.triage import TriageError
 
 _AUTH_NOTICE = (
     "[bold]Authorised use only.[/] PromptStrike is a security-testing tool. "
     "Run it only against endpoints you own or have explicit written permission "
     "to test."
 )
+
+_SEVERITY_STYLE = {
+    Severity.CRITICAL: "bold red",
+    Severity.HIGH: "red",
+    Severity.MEDIUM: "yellow",
+    Severity.LOW: "cyan",
+    Severity.INFO: "dim",
+}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -47,17 +57,18 @@ def _run_scan(config_path: str, console: Console) -> int:
     console.print(Panel(_AUTH_NOTICE, title="PromptStrike"))
     try:
         findings = asyncio.run(run_scan_from_config(config_path, console=console))
-    except (ConfigError, ProbeLoadError, ProviderError) as exc:
+    except (ConfigError, ProbeLoadError, ProviderError, TriageError) as exc:
         console.print(f"[red]Scan failed:[/] {exc}")
         return 1
 
-    hits = [f for f in findings if f.verdict.success]
-    for f in hits:
+    # findings are already triaged: confirmed, scored, and most-severe-first.
+    for f in findings:
+        style = _SEVERITY_STYLE.get(f.severity, "white")
         console.print(
-            f"  [red]•[/] {f.owasp_id} {f.category_name} "
-            f"(confidence {f.verdict.confidence:.2f})"
+            f"  [{style}]{f.severity.value:<8}[/] {f.owasp_id} {f.category_name} "
+            f"(confidence {f.confidence:.2f})"
         )
-    console.print(f"[bold]{len(hits)}[/] confirmed finding(s).")
+    console.print(f"[bold]{len(findings)}[/] confirmed finding(s).")
     return 0
 
 

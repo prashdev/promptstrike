@@ -11,6 +11,9 @@ target:
   base_url: https://api.example.com/v1
   model: gpt-4o-mini
   api_key: ${TARGET_API_KEY}
+  agentic: false              # true if the target can take actions (tools,
+                              # plugins, autonomy); escalates triage severity
+                              # for injection/output/agency findings.
 
 # Judge: for real scans, default to a strong Anthropic model. The judge decides
 # whether each attack succeeded, so its quality IS the credibility of the whole
