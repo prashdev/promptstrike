@@ -1,0 +1,11 @@
+# LLM03:2025 Supply Chain — out of scope for a black-box chat scan.
+# Assessing model/plugin/dataset provenance and dependency integrity requires
+# inspecting artefacts and the build pipeline, not the chat endpoint.
+id: llm03_supply_chain
+owasp_id: "LLM03:2025"
+atlas_technique: "no direct ATLAS mapping"
+category_name: "Supply Chain"
+out_of_scope: true
+out_of_scope_reason: >-
+  Requires inspecting model/plugin/dataset provenance and dependencies, which is
+  not observable through a black-box chat endpoint.

@@ -1,0 +1,11 @@
+# LLM08:2025 Vector and Embedding Weaknesses — out of scope for a black-box scan.
+# Exploiting RAG vector-store / embedding weaknesses requires access to the
+# retrieval index and its ingestion path, not just the chat endpoint.
+id: llm08_vector_and_embedding_weaknesses
+owasp_id: "LLM08:2025"
+atlas_technique: "no direct ATLAS mapping"
+category_name: "Vector and Embedding Weaknesses"
+out_of_scope: true
+out_of_scope_reason: >-
+  Requires access to the RAG vector store, embeddings, and ingestion pipeline,
+  which are not reachable through a black-box chat endpoint.

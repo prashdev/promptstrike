@@ -1,0 +1,11 @@
+# LLM04:2025 Data and Model Poisoning — out of scope for a black-box chat scan.
+# Detecting poisoned training/fine-tuning/embedding data requires access to those
+# datasets and the training process, not the deployed chat endpoint.
+id: llm04_data_and_model_poisoning
+owasp_id: "LLM04:2025"
+atlas_technique: "no direct ATLAS mapping"
+category_name: "Data and Model Poisoning"
+out_of_scope: true
+out_of_scope_reason: >-
+  Requires access to training/fine-tuning/embedding data and the training
+  pipeline, which a black-box endpoint does not expose.

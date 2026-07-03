@@ -12,10 +12,10 @@ from abc import ABC, abstractmethod
 from promptstrike.models.probe import AttackResult
 from promptstrike.providers.base import Provider
 
-_REGISTRY: dict[str, type["Probe"]] = {}
+_REGISTRY: dict[str, type[Probe]] = {}
 
 
-def register(cls: type["Probe"]) -> type["Probe"]:
+def register(cls: type[Probe]) -> type[Probe]:
     """Class decorator that registers a probe by its ``name``."""
     _REGISTRY[cls.name] = cls
     return cls

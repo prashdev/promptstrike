@@ -1,0 +1,11 @@
+# LLM10:2025 Unbounded Consumption — out of scope for a safe black-box scan.
+# Demonstrating resource/cost exhaustion (DoS, wallet-drain) means deliberately
+# abusive load, which conflicts with the tool's authorised, safe-testing posture.
+id: llm10_unbounded_consumption
+owasp_id: "LLM10:2025"
+atlas_technique: "no direct ATLAS mapping"
+category_name: "Unbounded Consumption"
+out_of_scope: true
+out_of_scope_reason: >-
+  Testing resource/cost exhaustion requires deliberately abusive load (DoS /
+  wallet attacks), which is out of scope for safe, authorised black-box scanning.
