@@ -27,9 +27,16 @@ requires access to model weights, training data, or system internals.
    credentials via env refs, which probe suites to run, judge settings, report
    format). No behaviour is hard-coded that a user might reasonably want to
    change.
-3. **Traceable findings.** Every finding maps to an **OWASP LLM ID**
-   (e.g. `LLM01:2025`) *and* a **MITRE ATLAS technique** (e.g. `AML.T0051`).
-   A finding without both mappings is a bug.
+3. **Traceable findings.** Every finding must carry a valid **OWASP LLM ID**
+   (e.g. `LLM01:2025`) *and* an ATLAS field that is **either** a real **MITRE
+   ATLAS technique ID** (e.g. `AML.T0051`) **or** the explicit
+   `NO_DIRECT_ATLAS_MAPPING` sentinel — **never** a fabricated, guessed, or
+   forced ID. IDs must be verified against the source catalogues in `mappings/`
+   (OWASP LLM 2025, MITRE ATLAS). The sentinel is the *correct, honest* value for
+   OWASP weakness-categories that have no clean 1:1 adversary technique in the
+   ATLAS taxonomy — e.g. **LLM06 Excessive Agency**, a design weakness rather
+   than a specific technique. A missing OWASP ID, or an invented/approximated
+   ATLAS ID used in place of the sentinel, is a bug.
 4. **Judged, not guessed.** Attack success is decided by an LLM-as-judge with a
    structured rubric, then passed through a false-positive filter. Raw
    string-matching is only a pre-filter, never the final verdict.
@@ -194,7 +201,9 @@ YAML config ─▶ config.loader ─▶ engine.scanner
   needed; never swallow exceptions silently. Surface actionable messages via
   `rich`.
 - **Every new probe** must: subclass the `Probe` ABC, register itself, declare
-  its OWASP LLM id and MITRE ATLAS technique, and ship a unit test.
+  its OWASP LLM id and its MITRE ATLAS technique (a real verified ID *or*
+  `NO_DIRECT_ATLAS_MAPPING`), referencing the id constants in `mappings/` rather
+  than hard-coding strings, and ship a unit test.
 - **Authorisation**: user-facing entrypoints display/confirm an authorised-use
   notice; keep that behaviour intact.
 
