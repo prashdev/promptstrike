@@ -9,6 +9,8 @@ payloads live in the probe YAMLs and the scoring lives in ``judge``.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -21,14 +23,14 @@ from rich.progress import (
 
 from promptstrike.config.errors import ConfigError
 from promptstrike.config.loader import load_config
+from promptstrike.config.schema import RunConfig
 from promptstrike.judge.judge import judge_attack
 from promptstrike.models.finding import Finding, Transcript
 from promptstrike.models.probe import Probe
-from promptstrike.models.triage import TriagedFinding
+from promptstrike.models.scan import ScanRun
 from promptstrike.probes.loader import load_probes
 from promptstrike.providers import create_provider
 from promptstrike.providers.base import LLMProvider
-from promptstrike.triage import triage_findings
 
 
 async def run_scan(
@@ -103,34 +105,75 @@ def _select_probes(probes: list[Probe], wanted: list[str] | None) -> list[Probe]
     return [by_id[pid] for pid in wanted]
 
 
-async def run_scan_from_config(
-    config_path: str,
-    *,
-    console: Console | None = None,
-) -> list[TriagedFinding]:
-    """Load a YAML run config, run the scan, and triage the results.
+def _target_label(config: RunConfig) -> str:
+    """A short human label for the target, e.g. ``ollama/dolphin-mistral``."""
+    target = config.target
+    provider = str(target.get("provider", "?"))
+    backend = target.get("backend")
+    model = target.get("model")
+    if not model and isinstance(backend, dict):
+        model = backend.get("model")
+    return f"{provider}/{model}" if model else provider
 
-    The config-driven entry point: it resolves ``${ENV}`` refs and validates the
-    config, builds the target and judge providers via the provider factory,
-    loads (and optionally filters) the probe library, runs the scan, then triages
-    the raw findings — sourcing the ``agentic`` flag from ``target.agentic`` in
-    the config rather than any code default. Providers it constructs are closed
-    on completion.
+
+async def run_scan_with_config(
+    config: RunConfig,
+    *,
+    config_path: str | None = None,
+    only: set[str] | None = None,
+    console: Console | None = None,
+) -> ScanRun:
+    """Run a scan described by an already-loaded ``RunConfig``.
+
+    Builds the target and judge providers, selects the probes (``config.probes``,
+    optionally narrowed to the OWASP ids in ``only``), runs the scan, and returns
+    the **raw** findings wrapped in a ``ScanRun`` (with the target label, the
+    ``agentic`` flag, and the timestamp). Triage is intentionally *not* done here
+    so scan and report stay separable. Providers it constructs are closed.
 
     Args:
-        config_path: Path to the YAML run config.
-        console: Optional ``rich`` console passed through to ``run_scan``.
+        config: The validated run config.
+        config_path: Optional path, recorded in the ScanRun for provenance.
+        only: Optional set of OWASP ids (e.g. ``{"LLM01:2025"}``) to restrict to.
+        console: Optional ``rich`` console.
 
     Returns:
-        Triaged findings (confirmed, scored, enriched), most severe first.
+        A ``ScanRun`` holding the raw judged findings.
     """
-    config = load_config(config_path)
     target = create_provider(config.target)
     judge = create_provider(config.judge)
     probes = _select_probes(load_probes(config.probe_dir), config.probes)
+    if only:
+        probes = [p for p in probes if p.owasp_id in only]
+        if not probes:
+            raise ConfigError(f"no probes match the requested categories: {only}")
     try:
         findings = await run_scan(target, judge, probes, console=console)
     finally:
         await target.aclose()
         await judge.aclose()
-    return triage_findings(findings, agentic=config.agentic)
+    return ScanRun(
+        target=_target_label(config),
+        agentic=config.agentic,
+        scanned_at=datetime.now(UTC),
+        config_path=config_path,
+        findings=findings,
+    )
+
+
+async def run_scan_from_config(
+    config_path: str,
+    *,
+    only: set[str] | None = None,
+    console: Console | None = None,
+) -> ScanRun:
+    """Load a YAML run config and run the scan it describes.
+
+    Thin wrapper over :func:`run_scan_with_config` that resolves ``${ENV}`` refs
+    and validates the config first. Returns the raw ``ScanRun`` (untriaged) so a
+    scan and a later re-report are separable.
+    """
+    config = load_config(config_path)
+    return await run_scan_with_config(
+        config, config_path=str(config_path), only=only, console=console
+    )

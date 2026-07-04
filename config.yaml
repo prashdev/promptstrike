@@ -1,0 +1,29 @@
+# Sample PromptStrike run config — scans the bundled vulnerable training target.
+#
+# Authorised use only. This points at PromptStrike's built-in deliberately-weak
+# target, so it needs no external service beyond a local Ollama with two models:
+#   ollama pull dolphin-mistral    # the target model (steerable, so it leaks)
+#   ollama pull llama3.2           # the judge model
+#
+# Run:  promptstrike scan --config config.yaml     (or:  make scan-demo)
+
+target:
+  provider: vulnerable_chatbot
+  agentic: false                 # the training chatbot has no tools/actions
+  backend:
+    provider: ollama
+    model: dolphin-mistral
+    options:
+      temperature: 0             # deterministic, reproducible target responses
+
+judge:
+  provider: ollama
+  model: llama3.2
+  options:
+    temperature: 0               # deterministic, reproducible verdicts
+
+# Run a focused subset for a quick demo; omit `probes:` to run the whole library.
+probes:
+  - llm01_prompt_injection
+  - llm02_sensitive_info
+  - llm07_system_prompt_leak

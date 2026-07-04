@@ -18,6 +18,12 @@ env/
 .coverage
 htmlcov/
 
+# Scan artifacts (may contain sensitive evidence — do not commit)
+.demo/
+promptstrike-results-*.json
+promptstrike-report-*.html
+promptstrike-report-*.md
+
 # Editor / OS cruft
 .DS_Store
 *.swp

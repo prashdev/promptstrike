@@ -10,16 +10,31 @@ penetration-test report.
 
 See [CLAUDE.md](CLAUDE.md) for architecture, folder layout, and conventions.
 
-## Status
-
-Early scaffold — package skeleton only, no scanning logic implemented yet.
-
 ## Quick start
 
 ```bash
-pip install -e ".[dev]"
-promptstrike scan -c configs/example.yaml
+make install                 # pip install -e ".[dev]"
+promptstrike --help          # see all commands
+
+# End-to-end demo against the bundled vulnerable target (needs a local Ollama:
+#   ollama pull dolphin-mistral llama3.2)
+make scan-demo               # promptstrike scan --config config.yaml --out-dir .demo
 ```
+
+## CLI
+
+```
+promptstrike ping        -c config.yaml     # check target + judge are reachable
+promptstrike list-probes                    # show the probe library
+promptstrike scan        -c config.yaml \    # scan → judge → triage → report
+    [--target ollama:llama3.2] [--judge ...] \
+    [--only LLM01,LLM07] [--min-confidence 0.6] [--report out.html]
+promptstrike report  results.json           # re-render a report from saved results
+```
+
+A scan always persists **raw** findings to a timestamped
+`promptstrike-results-*.json`, so a scan (which needs the network) and a
+re-report (offline, with different `--min-confidence`/`--only`) are separable.
 
 ## Choosing the judge model
 

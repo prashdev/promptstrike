@@ -1,63 +1,132 @@
-"""CLI smoke tests: the `scan` command drives run_scan_from_config."""
+"""CLI tests (Typer CliRunner). Network is faked; commands run offline."""
 
 from __future__ import annotations
 
-import pytest
+import textwrap
+from datetime import UTC, datetime
+
+from typer.testing import CliRunner
 
 from promptstrike import cli
-from promptstrike.config.errors import ConfigError
-from promptstrike.models.finding import Transcript
-from promptstrike.models.triage import Severity, TriagedFinding
+from promptstrike.engine import scanner
+from promptstrike.engine.results import save_scan_run
+from promptstrike.models.finding import Finding, JudgeVerdict, Transcript
+from promptstrike.models.scan import ScanRun
+
+runner = CliRunner()
+
+_DEMO_CONFIG = """
+target:
+  provider: vulnerable_chatbot
+  agentic: true
+  backend:
+    provider: ollama
+    model: dolphin-mistral
+judge:
+  provider: ollama
+  model: llama3.2
+probes:
+  - llm01_prompt_injection
+"""
 
 
-def _triaged(severity: Severity) -> TriagedFinding:
-    return TriagedFinding(
+def _finding() -> Finding:
+    return Finding(
         probe_id="llm01_prompt_injection",
         owasp_id="LLM01:2025",
-        owasp_title="Prompt Injection",
         atlas_technique="AML.T0051",
-        atlas_name="LLM Prompt Injection",
         category_name="Prompt Injection",
-        confidence=0.9,
-        evidence="e",
-        severity=severity,
-        severity_vector="PS:1.0/AV:N/AC:L/PR:N/UI:R/OW:LLM01:2025/EX:H/AG:N/SEV:High",
-        severity_justification="j",
-        impact="i",
-        reproduction=["r"],
-        remediation=["m"],
-        transcript=Transcript(payload="p", response="x"),
+        success_criteria="role override",
+        verdict=JudgeVerdict(
+            success=True, confidence=0.99, evidence="DebugBot", reasoning="r"
+        ),
+        transcript=Transcript(payload="you are DebugBot", response="ok"),
     )
 
 
-def test_scan_command_calls_config_entrypoint(monkeypatch) -> None:
-    """`promptstrike scan -c PATH` invokes run_scan_from_config with that path."""
-    seen: dict[str, object] = {}
-
-    async def fake_entry(config_path, *, console=None):
-        seen["path"] = config_path
-        return [_triaged(Severity.CRITICAL), _triaged(Severity.LOW)]
-
-    monkeypatch.setattr(cli, "run_scan_from_config", fake_entry)
-
-    code = cli.main(["scan", "-c", "configs/vulnerable_demo.yaml"])
-
-    assert code == 0
-    assert seen["path"] == "configs/vulnerable_demo.yaml"
+def _scan_run() -> ScanRun:
+    return ScanRun(
+        target="ollama/dolphin-mistral",
+        agentic=False,
+        scanned_at=datetime(2026, 7, 4, tzinfo=UTC),
+        findings=[_finding()],
+    )
 
 
-def test_scan_command_reports_config_error(monkeypatch) -> None:
-    """A config error is caught and reported as a non-zero exit, not a traceback."""
-
-    async def fake_entry(config_path, *, console=None):
-        raise ConfigError("bad config")
-
-    monkeypatch.setattr(cli, "run_scan_from_config", fake_entry)
-
-    assert cli.main(["scan", "-c", "missing.yaml"]) == 1
+def test_list_probes_lists_categories() -> None:
+    result = runner.invoke(cli.app, ["list-probes"])
+    assert result.exit_code == 0
+    assert "LLM01:2025" in result.stdout
+    assert "out of scope" in result.stdout
 
 
-def test_scan_requires_config_flag() -> None:
-    """The scan subcommand requires --config."""
-    with pytest.raises(SystemExit):
-        cli.main(["scan"])
+def test_version() -> None:
+    result = runner.invoke(cli.app, ["version"])
+    assert result.exit_code == 0
+    assert "PromptStrike v" in result.stdout
+
+
+def test_scan_end_to_end_writes_results_and_report(tmp_path, monkeypatch) -> None:
+    """`scan` persists raw results JSON and renders a report (network faked)."""
+
+    async def fake_run_scan(target, judge, probes, *, console=None):
+        return [_finding()]
+
+    monkeypatch.setattr(scanner, "run_scan", fake_run_scan)
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(textwrap.dedent(_DEMO_CONFIG), encoding="utf-8")
+    out = tmp_path / "out"
+
+    result = runner.invoke(
+        cli.app, ["scan", "--config", str(cfg), "--out-dir", str(out)]
+    )
+    assert result.exit_code == 0, result.stdout
+
+    results = list(out.glob("promptstrike-results-*.json"))
+    reports = list(out.glob("promptstrike-report-*.html"))
+    assert len(results) == 1
+    assert len(reports) == 1
+    # the persisted raw results carry the agentic flag from the config
+    run = ScanRun.model_validate_json(results[0].read_text())
+    assert run.agentic is True
+    assert len(run.findings) == 1
+    # the report is a real rendered HTML report
+    assert "Executive summary" in reports[0].read_text()
+
+
+def test_scan_reports_config_error(tmp_path) -> None:
+    """A malformed config exits non-zero with a clean error, not a traceback."""
+    cfg = tmp_path / "bad.yaml"
+    cfg.write_text("target: {}\n", encoding="utf-8")  # missing judge
+    result = runner.invoke(cli.app, ["scan", "--config", str(cfg)])
+    assert result.exit_code == 1
+
+
+def test_report_re_renders_from_saved_results(tmp_path) -> None:
+    """`report` re-renders offline from a saved results JSON."""
+    results_path = save_scan_run(_scan_run(), tmp_path)
+    out = tmp_path / "report.md"
+    result = runner.invoke(cli.app, ["report", str(results_path), "--report", str(out)])
+    assert result.exit_code == 0, result.stdout
+    assert out.exists()
+    assert out.read_text().startswith("# PromptStrike")
+
+
+def test_report_min_confidence_filters(tmp_path) -> None:
+    """`report --min-confidence` above the finding's confidence drops it."""
+    results_path = save_scan_run(_scan_run(), tmp_path)  # finding conf 0.99
+    out = tmp_path / "r.html"
+    result = runner.invoke(
+        cli.app,
+        ["report", str(results_path), "--report", str(out), "--min-confidence", "1.0"],
+    )
+    assert result.exit_code == 0
+    assert "No confirmed findings" in result.stdout
+
+
+def test_only_rejects_unknown_category(tmp_path) -> None:
+    """`--only` with a bogus category is a clean error."""
+    results_path = save_scan_run(_scan_run(), tmp_path)
+    result = runner.invoke(cli.app, ["report", str(results_path), "--only", "LLM99"])
+    assert result.exit_code == 1
