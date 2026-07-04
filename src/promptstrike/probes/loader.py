@@ -1,9 +1,9 @@
 """Load probe definitions from YAML files into ``Probe`` models.
 
-Probe definitions live as one YAML file per OWASP category under the repo-root
-``probes/`` directory (kept as data, separate from this code package). This
-loader reads them all into memory and validates each against the ``Probe`` model,
-so unknown ids or malformed entries fail loudly at load time.
+Probe definitions live as one YAML file per OWASP category in the ``probes/``
+data set (kept as data, separate from this code package). This loader reads them
+all into memory and validates each against the ``Probe`` model, so unknown ids or
+malformed entries fail loudly at load time.
 """
 
 from __future__ import annotations
@@ -15,9 +15,10 @@ from pydantic import ValidationError
 
 from promptstrike.models.probe import Probe
 from promptstrike.probes.errors import ProbeLoadError
+from promptstrike.util.paths import data_dir
 
-#: Repo-root ``probes/`` directory (this file is src/promptstrike/probes/loader.py).
-DEFAULT_PROBE_DIR = Path(__file__).resolve().parents[3] / "probes"
+#: Bundled ``probes/`` directory (repo-root in source, ``_data/`` in a wheel).
+DEFAULT_PROBE_DIR = data_dir("probes")
 
 
 def load_probe_file(path: str | Path) -> Probe:

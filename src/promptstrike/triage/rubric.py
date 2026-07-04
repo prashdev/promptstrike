@@ -16,11 +16,10 @@ from pydantic import BaseModel, model_validator
 
 from promptstrike.models.triage import Severity
 from promptstrike.triage.errors import TriageError
+from promptstrike.util.paths import data_dir
 
-#: Repo-root default rubric (this file is src/promptstrike/triage/rubric.py).
-DEFAULT_RUBRIC_PATH = (
-    Path(__file__).resolve().parents[3] / "configs" / "severity_rubric.yaml"
-)
+#: Bundled default rubric (repo-root ``configs/`` in source, ``_data/`` in a wheel).
+DEFAULT_RUBRIC_PATH = data_dir("configs") / "severity_rubric.yaml"
 
 #: Severity ladder, lowest to highest. Index arithmetic drives scoring.
 _LADDER = ["info", "low", "medium", "high", "critical"]

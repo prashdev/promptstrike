@@ -36,6 +36,15 @@ promptstrike = "promptstrike.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/promptstrike"]
+# Jinja2 templates live inside the package; ship them (not just .py files).
+artifacts = ["src/promptstrike/report/templates/*.j2"]
+
+# The probe library and config data live at the repo root for easy editing;
+# force-include them under the package as promptstrike/_data/ so they ship in
+# the wheel. util.paths.data_dir() resolves this packaged copy at runtime.
+[tool.hatch.build.targets.wheel.force-include]
+"probes" = "promptstrike/_data/probes"
+"configs" = "promptstrike/_data/configs"
 
 [tool.ruff]
 line-length = 88
