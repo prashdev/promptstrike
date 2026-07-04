@@ -1,6 +1,195 @@
-{# HTML penetration-test report template. #}
-{# TODO: render title, authorised-use notice, summary, and per-finding #}
-{# sections with OWASP LLM id, MITRE ATLAS technique, severity, evidence. #}
 <!doctype html>
-<title>PromptStrike Report</title>
-<h1>PromptStrike Report</h1>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PromptStrike Report — {{ target }}</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #0f141b; --border: #30363d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --heading: #f0f6fc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1, h2, h3 { color: var(--heading); font-weight: 600; line-height: 1.25; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 40px 0 14px; padding-bottom: 8px;
+       border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 0; }
+  a { color: var(--accent); text-decoration: none; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Consolas, monospace; font-size: 12.5px; }
+  .sub { color: var(--muted); margin: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 18px 20px; }
+  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+    gap: 8px 24px; margin-top: 16px; }
+  .meta div { font-size: 13px; }
+  .meta .k { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    color: var(--muted); background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 10px; }
+  .chip b { color: var(--heading); font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .bar { margin: 10px 0 6px; border-radius: 4px; overflow: hidden;
+    border: 1px solid var(--border); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase; color: #0d1117;
+    border-radius: 5px; padding: 2px 9px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+    vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px;
+    text-transform: uppercase; letter-spacing: .03em; }
+  .status-tested { color: #3fb950; font-weight: 600; }
+  .status-out { color: var(--muted); }
+  .finding { margin-top: 18px; }
+  .finding .head { display: flex; align-items: center; gap: 12px;
+    justify-content: space-between; }
+  .finding .kv { display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 6px 20px; margin: 12px 0; font-size: 13px; }
+  .kv .k { color: var(--muted); display: block; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .03em; }
+  .label { color: var(--muted); font-size: 11px; text-transform: uppercase;
+    letter-spacing: .04em; margin: 14px 0 4px; }
+  pre { background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px; overflow-x: auto;
+    white-space: pre-wrap; word-break: break-word; margin: 4px 0; color: #e6edf3; }
+  ul, ol { margin: 4px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .vector { font-family: ui-monospace, monospace; font-size: 12px;
+    color: var(--muted); }
+  .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 12px; }
+  .notice { background: #21262d; border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); border-radius: 6px; padding: 10px 14px;
+    color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>PromptStrike Penetration-Test Report</h1>
+    <p class="sub">Black-box LLM red-team assessment · OWASP LLM Top 10 (2025)</p>
+    <div class="meta">
+      <div><span class="k">Target</span><br><b>{{ target }}</b></div>
+      <div><span class="k">Scan date</span><br>{{ scanned_at }}</div>
+      <div><span class="k">Scope</span><br>{{ tested_count }} of 10 categories
+        tested · {{ out_of_scope_count }} out of scope</div>
+      <div><span class="k">Confirmed findings</span><br>{{ total_findings }}</div>
+    </div>
+  </header>
+
+  <h2>Executive summary</h2>
+  <div class="panel">
+    <div class="chips">
+      {% for name, count, color in severity_counts %}
+      <span class="chip"><span class="dot" style="background: {{ color }}"></span>
+        <b>{{ count }}</b> {{ name }}</span>
+      {% endfor %}
+    </div>
+    <div class="bar">{{ severity_bar_svg | safe }}</div>
+    <p style="margin-top:16px">{{ narrative }}</p>
+  </div>
+
+  <h2>Coverage matrix</h2>
+  <p class="sub">What was in scope for this black-box scan and what was not.</p>
+  <table>
+    <thead><tr><th>OWASP LLM</th><th>Category</th><th>Status</th>
+      <th>Findings</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for row in coverage %}
+      <tr>
+        <td><code>{{ row.owasp_id }}</code></td>
+        <td>{{ row.title }}</td>
+        <td>{% if row.status == "Tested" %}<span class="status-tested">Tested</span>
+          {% else %}<span class="status-out">{{ row.status }}</span>{% endif %}</td>
+        <td>{{ row.findings }}</td>
+        <td class="sub">{{ row.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Findings</h2>
+  {% if not findings %}
+  <p class="sub">No confirmed findings in the tested categories.</p>
+  {% endif %}
+  {% for f in findings %}
+  <div class="finding panel">
+    <div class="head">
+      <h3>{{ f.index }}. {{ f.title }}</h3>
+      <span class="badge" style="background: {{ f.severity_color }}">{{ f.severity }}</span>
+    </div>
+    <div class="kv">
+      <div><span class="k">OWASP LLM</span>{{ f.owasp_id }} — {{ f.owasp_title }}</div>
+      <div><span class="k">MITRE ATLAS</span>{{ f.atlas_technique }}
+        {% if f.atlas_name != f.atlas_technique %}({{ f.atlas_name }}){% endif %}</div>
+      <div><span class="k">Judge confidence</span>{{ f.confidence }}</div>
+      {% if f.duplicate_count > 1 %}
+      <div><span class="k">Occurrences</span>{{ f.duplicate_count }} near-identical</div>
+      {% endif %}
+    </div>
+    <div class="vector">{{ f.vector }}</div>
+    <p class="sub" style="margin-top:6px">{{ f.justification }}</p>
+
+    <div class="label">Impact</div>
+    <p style="margin-top:0">{{ f.impact }}</p>
+
+    <div class="label">Reproduction</div>
+    <ol>{% for step in f.reproduction %}<li>{{ step }}</li>{% endfor %}</ol>
+
+    <div class="label">Evidence — request (attack payload)</div>
+    <pre>{{ f.request }}</pre>
+    <div class="label">Evidence — target response (redacted, excerpt)</div>
+    <pre>{{ f.response_excerpt }}</pre>
+    {% if f.evidence %}
+    <div class="label">Judge-cited snippet (redacted)</div>
+    <pre>{{ f.evidence }}</pre>
+    {% endif %}
+
+    <div class="label">Remediation</div>
+    <ul>{% for step in f.remediation %}<li>{{ step }}</li>{% endfor %}</ul>
+  </div>
+  {% endfor %}
+
+  <h2>GRC appendix — control cross-reference</h2>
+  <p class="sub">Findings mapped to governance and regulatory frameworks.</p>
+  <table>
+    <thead><tr><th>Finding</th><th>NIST AI RMF</th><th>ISO/IEC 42001</th>
+      <th>EU AI Act</th></tr></thead>
+    <tbody>
+      {% for row in grc_rows %}
+      <tr>
+        <td><code>{{ row.owasp_id }}</code><br>{{ row.title }}</td>
+        <td>{% for ref in row.nist %}{{ ref }}<br>{% endfor %}</td>
+        <td>{% for ref in row.iso %}{{ ref }}<br>{% endfor %}</td>
+        <td>{% for ref in row.eu %}{{ ref }}<br>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+      {% if not grc_rows %}
+      <tr><td colspan="4" class="sub">No findings to cross-reference.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+  <div class="notice">{{ grc_caveat }}</div>
+
+  <div class="footer">
+    <p><b>Authorised use only.</b> This report documents a security test of a
+      system the operator owns or has explicit written permission to test.
+      Evidence is redacted on a best-effort basis; treat this document as
+      sensitive.</p>
+    <p>Generated by {{ tool }} v{{ version }} · {{ generated_at }}</p>
+  </div>
+
+</div>
+</body>
+</html>
