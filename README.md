@@ -1,15 +1,22 @@
+<div align="center">
+
+<img src="docs/img/logo.png" alt="PromptStrike logo" width="112" height="112" />
+
 # PromptStrike
 
-**A black-box LLM red-teaming scanner that turns raw attack output into a
-triaged, severity-scored penetration-test report.** It probes an LLM endpoint
-for **OWASP LLM Top 10 (2025)** weaknesses, uses an **LLM-as-judge** to decide
-whether each attack actually succeeded, filters false positives, scores severity
-with a documented rubric, and renders a self-contained HTML/Markdown report with
-OWASP + MITRE ATLAS mappings and a GRC appendix.
+**Turn raw LLM attack output into a triaged, severity-scored pentest report.**
 
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Tests: pytest](https://img.shields.io/badge/tests-pytest-informational)
+
+</div>
+
+PromptStrike is a black-box LLM red-teaming scanner. It probes an LLM endpoint
+for **OWASP LLM Top 10 (2025)** weaknesses, uses an **LLM-as-judge** to decide
+whether each attack actually succeeded, filters false positives, scores severity
+with a documented rubric, and renders a self-contained HTML/Markdown report with
+OWASP + MITRE ATLAS mappings and a GRC appendix.
 
 > **Authorised use only.** Run PromptStrike only against endpoints you own or
 > have explicit written permission to test. See [Responsible testing](#responsible-testing).

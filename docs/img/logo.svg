@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="PromptStrike logo">
+  <defs>
+    <linearGradient id="ps-bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8c42"/>
+      <stop offset="1" stop-color="#f2495c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- badge -->
+  <rect x="3" y="3" width="122" height="122" rx="30" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+
+  <!-- targeting reticle (scan) -->
+  <circle cx="64" cy="64" r="42" fill="none" stroke="#39414d" stroke-width="3"/>
+  <g stroke="#39414d" stroke-width="3" stroke-linecap="round">
+    <line x1="64" y1="12" x2="64" y2="26"/>
+    <line x1="64" y1="102" x2="64" y2="116"/>
+    <line x1="12" y1="64" x2="26" y2="64"/>
+    <line x1="102" y1="64" x2="116" y2="64"/>
+  </g>
+
+  <!-- lightning strike -->
+  <path d="M74 22 L42 68 L60 68 L54 106 L88 56 L66 56 Z"
+        fill="url(#ps-bolt)" stroke="#0d1117" stroke-width="3" stroke-linejoin="round"/>
+</svg>
