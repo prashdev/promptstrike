@@ -63,7 +63,7 @@ _REDACTED = "«redacted»"
 
 
 def _mask_email(match: re.Match[str]) -> str:
-    """Mask an email's local part: ``jane.roe@x.com`` → ``j…@x.com``."""
+    """Mask an email's local part: ``jane.roe@example.com`` → ``j…@example.com``."""
     local, _, domain = match.group().partition("@")
     return f"{local[:1]}…@{domain}"
 
