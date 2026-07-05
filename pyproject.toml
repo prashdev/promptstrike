@@ -8,10 +8,11 @@ version = "0.0.1"
 description = "Black-box LLM red-teaming scanner for the OWASP LLM Top 10 (2025)."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = { text = "MIT" }
 authors = [{ name = "Prashik Kamble" }]
 keywords = ["llm", "security", "red-team", "owasp", "mitre-atlas"]
 classifiers = [
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Security",
