@@ -44,17 +44,24 @@ finding **credible, ranked, and communicable**.
 
 ## Sample report
 
-See a real report generated from the baseline findings:
-[**`docs/sample-report.html`**](docs/sample-report.html) (open locally) or the
-GitHub-rendered [`docs/sample-report.md`](docs/sample-report.md).
+A real report generated from the baseline findings (full file:
+[`docs/sample-report.html`](docs/sample-report.html), or the GitHub-rendered
+[`docs/sample-report.md`](docs/sample-report.md)).
+
+**Executive summary** — findings-by-severity, an inline SVG severity bar, and a
+CISO-ready risk narrative:
+
+![PromptStrike report — executive summary](docs/img/exec-summary.png)
+
+**A finding** — severity badge, CVSS-style vector, OWASP + MITRE ATLAS, impact,
+reproduction, and **redacted** request/response evidence:
+
+![PromptStrike report — a finding card](docs/img/finding-card.png)
 
 The HTML report is a **single self-contained file** (inline CSS, no external
-assets, dark theme) with: an executive summary (findings-by-severity + an inline
-SVG severity bar + a 3-sentence CISO risk narrative), a coverage matrix over all
-10 OWASP categories, one section per finding (severity badge, CVSS-style vector,
-OWASP ID, MITRE ATLAS technique, impact, reproduction, **redacted** evidence,
-remediation), and a GRC appendix cross-referencing NIST AI RMF, ISO/IEC 42001,
-and EU AI Act articles.
+assets, dark theme). Beyond the above it includes a coverage matrix over all 10
+OWASP categories, per-finding remediation, and a GRC appendix cross-referencing
+NIST AI RMF, ISO/IEC 42001, and EU AI Act articles.
 
 ## Quickstart
 
