@@ -86,6 +86,218 @@ make scan-demo      # promptstrike scan --config config.yaml --out-dir .demo
 triage → report — and writes a timestamped results JSON and an HTML report to
 `.demo/`. No API keys, no external endpoints.
 
+## Testing your own target
+
+The demo scans a bundled dummy. This section walks through pointing PromptStrike
+at a **real** target — an LLM endpoint or app you are authorised to test. It
+assumes you know basic security concepts but have never used this tool.
+
+### Before you start
+
+You need five things:
+
+- **(a) Written authorization** to test the target. Black-box probing sends
+  adversarial prompts to a live system; only do it against something you own or
+  have explicit written permission to test. (See [Responsible testing](#responsible-testing).)
+- **(b) A reachable endpoint** for the target LLM/app — a URL PromptStrike can
+  send chat requests to from where you run it.
+- **(c) Credentials**, if the endpoint requires them (an API key, token, etc.).
+- **(d) A judge model** configured — either a local [Ollama](https://ollama.com)
+  model (free, weaker) or a cloud API key (e.g. Anthropic; stronger, recommended
+  for real reports). The judge decides whether each attack actually succeeded;
+  see [Choosing the judge model](#choosing-the-judge-model).
+- **(e) PromptStrike installed** locally — see [Quickstart](#quickstart) above
+  (`make install`).
+
+### The provider concept (read this first)
+
+PromptStrike does **not** hard-code what it attacks. It talks to any endpoint
+that speaks one of **three protocols**, and you choose which by editing a YAML
+config file — **no code changes**:
+
+| `provider:` value | Protocol | Typical use |
+|---|---|---|
+| `openai` | OpenAI-compatible `/chat/completions` | Most hosted chatbot APIs, gateways (vLLM, LiteLLM, Together, Groq, …), and Ollama's `/v1` shim |
+| `anthropic` | Anthropic Messages API | An app backed by Claude |
+| `ollama` | Ollama native `/api/chat` | A local or self-hosted model |
+
+Both the **target** (what you attack) and the **judge** (what scores the attacks)
+are providers, and they can be different protocols. If your endpoint doesn't fit
+any of the three, see [Extending to a new provider](#extending-to-a-new-provider).
+
+### Config examples (one per provider)
+
+Copy one of these into a file — say `my-target.yaml` — and edit the values.
+Every field is commented.
+
+**1. OpenAI-compatible target** (e.g. your own hosted chatbot API):
+
+```yaml
+target:
+  provider: openai                       # speaks the OpenAI /chat/completions protocol
+  base_url: https://api.yourcompany.com/v1  # your API root, ending in /v1
+  model: your-model-name                 # the model/deployment name your API expects
+  api_key: ${YOUR_API_KEY}               # read from an env var at runtime (see note below)
+  agentic: false                         # true if the target can call tools / take actions
+                                         #   (raises severity for injection/output/agency findings)
+
+judge:
+  provider: anthropic                    # score attacks with a strong cloud model
+  model: claude-sonnet-5
+  api_key: ${JUDGE_API_KEY}
+
+# probes:                                # optional: run a subset; omit to run the whole
+#   - llm01_prompt_injection             #   in-scope library. Run `promptstrike list-probes`.
+#   - llm02_sensitive_info
+```
+
+**2. Anthropic-backed target** (an app served by Claude):
+
+```yaml
+target:
+  provider: anthropic                    # speaks the Anthropic Messages API
+  model: claude-sonnet-5                 # the Anthropic model your app serves
+  api_key: ${YOUR_API_KEY}               # read from an env var at runtime
+  base_url: https://api.anthropic.com    # optional; this is the default (override for a proxy)
+  agentic: false                         # true if the target can take actions
+
+judge:
+  provider: ollama                       # score locally, free (weaker than a cloud judge)
+  model: llama3.2
+  options:
+    temperature: 0                       # deterministic, reproducible verdicts
+```
+
+**3. Local Ollama target** (your own fine-tuned or self-hosted model):
+
+```yaml
+target:
+  provider: ollama                       # speaks Ollama's native /api/chat
+  model: my-finetuned-model              # a model tag from `ollama list`
+  base_url: http://localhost:11434       # optional; this is the default local daemon
+  options:
+    temperature: 0                       # deterministic, reproducible target responses
+  agentic: false                         # true if the target can take actions
+
+judge:
+  provider: anthropic                    # a strong judge keeps the report credible
+  model: claude-sonnet-5
+  api_key: ${JUDGE_API_KEY}
+```
+
+> **Why `${ENV_VAR}` and not the key itself?** Secrets go in **environment
+> variables**, not the YAML. PromptStrike resolves `${YOUR_API_KEY}` from the
+> environment when it loads the config, so you can commit or share the config
+> file without leaking credentials.
+
+### Your first run, step by step
+
+Using config example 1 above (target key `YOUR_API_KEY`, judge key `JUDGE_API_KEY`):
+
+**1. Put your credentials in environment variables.** These live only in the
+current terminal session:
+
+```bash
+export YOUR_API_KEY="sk-your-real-target-key"
+export JUDGE_API_KEY="sk-ant-your-real-judge-key"
+```
+
+**2. Verify connectivity before scanning** — `ping` sends one trivial prompt to
+each provider so you catch a bad URL or key in seconds, not mid-scan:
+
+```bash
+promptstrike ping --config my-target.yaml
+```
+
+A **successful** ping looks like this (both endpoints answered):
+
+```text
+                              ping
+┏━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┓
+┃ Role   ┃ Provider          ┃ Latency ┃ Reply ┃
+┡━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━┩
+│ target │ your-model-name   │ 512 ms  │ Pong  │
+│ judge  │ claude-sonnet-5   │ 734 ms  │ Pong  │
+└────────┴───────────────────┴─────────┴───────┘
+```
+
+A **connection failure** shows `FAIL` and the reason (fix this before scanning):
+
+```text
+│ target │ your-model-name   │ FAIL    │ api.yourcompany.com returned 401: … │
+```
+
+Common causes: wrong `base_url`, a missing/expired key (401/403), or an
+unreachable host (connection refused / timeout).
+
+**3. Run the scan:**
+
+```bash
+# Full in-scope library, writing outputs into ./results/
+promptstrike scan --config my-target.yaml --out-dir results
+
+# Or start small — one or two categories for a quick first pass:
+promptstrike scan --config my-target.yaml --only LLM01,LLM07 --out-dir results
+```
+
+**4. What a successful run looks like** — a progress bar per category, then a
+summary and the paths to the two output files:
+
+```text
+Scan complete: 3 finding(s) across 12 attempt(s) in 3 in-scope categories.
+                Confirmed findings
+┏━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━┓
+┃ Severity ┃ OWASP      ┃ Category         ┃ Conf ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━┩
+│ Critical │ LLM02:2025 │ Sensitive Info…  │ 1.00 │
+│ High     │ LLM07:2025 │ System Prompt…   │ 0.90 │
+└──────────┴────────────┴──────────────────┴──────┘
+
+3 confirmed finding(s). Raw results: results/promptstrike-results-…json ·
+HTML report: results/promptstrike-report-…html
+```
+
+If the target is unreachable or the key is wrong, the scan stops early and prints
+`Error: …` with the cause — the same problems `ping` surfaces in step 2.
+
+**5. Open and read the report.** The `.html` file is self-contained (open it in
+any browser); the `.json` is the raw findings you can re-report from later.
+
+```bash
+open results/promptstrike-report-*.html        # macOS
+xdg-open results/promptstrike-report-*.html     # Linux
+```
+
+The report leads with an executive summary and severity breakdown, then one
+section per finding (impact, reproduction, redacted evidence, remediation), a
+coverage matrix, and a GRC appendix — see [Sample report](#sample-report) for
+what it looks like. The raw JSON lets you re-render offline with different
+thresholds: `promptstrike report results/promptstrike-results-*.json --min-confidence 0.8`.
+
+### Extending to a new provider
+
+If your target doesn't speak any of the three supported protocols (a bespoke
+API, a message queue, a custom gateway), you can add support by implementing the
+`LLMProvider` interface — a single method, `chat(messages, system) -> str`. This
+is a **small, contained addition: one new adapter file**, not a change to the
+scanner, judge, triage, or report.
+
+Start from [`src/promptstrike/providers/base.py`](src/promptstrike/providers/base.py)
+(the interface) and copy an existing adapter as a template —
+[`openai_compat.py`](src/promptstrike/providers/openai_compat.py),
+[`anthropic.py`](src/promptstrike/providers/anthropic.py), or
+[`ollama.py`](src/promptstrike/providers/ollama.py) — then register your provider
+name in [`registry.py`](src/promptstrike/providers/registry.py). Everything
+downstream already depends only on the interface, so nothing else changes.
+
+### Contributing your findings back
+
+Built a new provider adapter, or new probes for a vulnerability class not yet
+covered? Contributions are welcome — open an issue or pull request on GitHub.
+There's no `CONTRIBUTING.md` yet, so just describe what you added and why; keep
+new probes aligned with an OWASP LLM category and a verified MITRE ATLAS
+technique (or the `NO_DIRECT_ATLAS_MAPPING` sentinel), as the existing ones do.
+
 ## How it works
 
 ```mermaid
